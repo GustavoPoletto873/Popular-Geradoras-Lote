@@ -110,3 +110,15 @@ Só foram testados contra uma PAS falsa. Rodar `testar_navegador_britech --repet
 **Q30 🟡 Qual política de conclusão usar no início: `manual` ou `espera`?**
 Sem sinal de fim (Q4), recomendo começar com `manual` num fundo (alguém confere na PAS e confirma no admin) e só depois passar a `espera` com o tempo que essa prática mostrar. Quem confirma, e em quanto tempo o processamento costuma terminar?
 
+## Surgiram na Fase 6 (Excel e Drive) e na mudança para o SimplificaHub_V2
+
+**Q31 🟡 Qual é a stack do SimplificaHub_V2 e onde está o desenho/repositório?** (ver `08_portabilidade_simplificahub_v2.md`)
+
+**Q32 🟡 Mover para o V2 = copiar o código para dentro dele, ou o V2 só chama este app como serviço?**
+
+**Q33 🟡 Os nomes de tipo e de fundo no Monday batem com as pastas do Drive?**
+O publicador exige `Tipo/Fundo` com o nome exato. Rode `testar_drive` em alguns fundos; onde divergir, corrija o nome ou informe o id da pasta em `PastaCompetencia` (admin).
+
+**Q34 🟡 Como o pipeline obtém o token do `drive_api` (DRF Token) e qual a URL base (prefixo de `arquivos/`, `pastas/`)?**
+E qual o id da pasta-raiz real e da pasta HOMOLOG.
+

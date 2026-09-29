@@ -27,8 +27,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import config, paths, painel, populate
-from .copiar import copiar_arquivo_origem
 from .excel_app import ExcelSession
+from .fundo import popular_arquivo
 
 logger = logging.getLogger(__name__)
 
@@ -77,52 +77,22 @@ def processar_fundo(
         resultado.status = "(dry-run) seria processado"
         return resultado
 
-    copia = copiar_arquivo_origem(
-        session, caminhos.pasta_origem, row.fundo, caminhos.pasta_saida, params.periodo_destino
-    )
-    if not copia.sucesso:
-        resultado.status = config.STATUS_NAO_PROCESSADO
-        resultado.erro = copia.mensagem
-        painel.escrever_status(ws_painel, row.linha, resultado.status)
-        return resultado
-
-    pasta_insumos = caminhos.pasta_insumos
-    if not pasta_insumos.exists():
-        resultado.status = config.STATUS_PASTA_NAO_ENCONTRADA
-        painel.escrever_status(ws_painel, row.linha, resultado.status)
-        return resultado
-
     resolver_do_step = None
     if resolver_ambiguidade is not None:
         resolver_do_step = lambda step, candidatos: resolver_ambiguidade(row.fundo, step, candidatos)
 
-    wb_destino = None
-    try:
-        wb_destino = session.open_workbook(copia.caminho_arquivo, read_only=False)
-        resultado.avisos = populate.executar_batch_steps(
-            session, wb_destino, pasta_insumos, resolver_ambiguidade=resolver_do_step
-        )
-        try:
-            wb_destino.Sheets(config.ABA_MAPA_CONTABIL).Activate()
-        except Exception:
-            logger.warning(
-                "Aba %r não encontrada em %s para ativar (não impede o salvamento).",
-                config.ABA_MAPA_CONTABIL,
-                copia.caminho_arquivo,
-            )
-        wb_destino.Close(SaveChanges=True)
-        wb_destino = None
-        resultado.status = config.STATUS_SALVO
-    except Exception as exc:
-        logger.exception("Erro populando fundo %s", row.fundo)
-        resultado.status = config.STATUS_ERRO
-        resultado.erro = str(exc)
-        if wb_destino is not None:
-            try:
-                wb_destino.Close(SaveChanges=False)
-            except Exception:
-                logger.warning("Falha ao fechar workbook de destino após erro.", exc_info=True)
-
+    populado = popular_arquivo(
+        session,
+        fundo=row.fundo,
+        periodo_destino=params.periodo_destino,
+        pasta_origem=caminhos.pasta_origem,
+        pasta_insumos=caminhos.pasta_insumos,
+        pasta_saida=caminhos.pasta_saida,
+        resolver_ambiguidade=resolver_do_step,
+    )
+    resultado.status = populado.status
+    resultado.avisos = populado.avisos
+    resultado.erro = populado.erro
     painel.escrever_status(ws_painel, row.linha, resultado.status)
     return resultado
 

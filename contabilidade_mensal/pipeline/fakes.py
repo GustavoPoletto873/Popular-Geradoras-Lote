@@ -1,6 +1,9 @@
-"""Handlers do pipeline de brinquedo (Fase 1): as 5 etapas sobre o gateway/backend FAKE.
+"""Handlers do pipeline: as 5 etapas sobre o gateway (fake | api | browser).
 
-Mostram o contrato que os handlers reais (Fases 2–6) seguirão:
+`popular_excel` e `publicar_drive` usam os adapters reais quando recebem `populador`/`publicador`
+(Fase 6); sem eles rodam STUBS que só escrevem dentro do staging, sem tocar Excel nem Drive.
+
+Contrato dos handlers:
   - falam com a Britech só por `BritechGateway`;
   - consomem o que as etapas anteriores produziram pelos ARTEFATOS VIGENTES (não pelo
     diretório da execução atual — a etapa anterior pode ter sido `pulado` por idempotência);
@@ -52,6 +55,8 @@ def montar_handlers(
     *,
     dry_run_processar: bool = False,
     dry_run_publicar: bool = False,
+    populador=None,
+    publicador=None,
 ) -> Mapping[str, Handler]:
     raiz = Path(raiz_staging)
 
@@ -116,6 +121,12 @@ def montar_handlers(
             from contabilidade_mensal.integrations.britech.erros import ArquivoInvalido
 
             raise ArquivoInvalido("faltam insumos/balancete íntegros para popular o Excel")
+        if populador is not None:
+            trabalho = raiz / ctx.competencia.aaaamm / str(ctx.execucao.pk) / str(ctx.fundo.pk) / "Excel"
+            gerada = populador.popular(
+                fundo=ctx.fundo, competencia=ctx.competencia, arquivos=entradas, pasta_trabalho=trabalho
+            )
+            return ResultadoEtapa([ArtefatoNovo(TipoArtefato.BOLETA, gerada.caminho)], dados={"avisos": gerada.avisos})
         pasta = staging.pasta_saida(raiz, ctx.competencia.aaaamm, ctx.execucao.pk, ctx.fundo.pk)
         boleta = pasta / f"{ctx.fundo.nome} {ctx.competencia.aaaamm}.xlsb"
         boleta.write_bytes(("fake-boleta|" + "|".join(sha256_arquivo(p) for p in sorted(entradas))).encode())
@@ -131,9 +142,26 @@ def montar_handlers(
             from contabilidade_mensal.integrations.britech.erros import ArquivoInvalido
 
             raise ArquivoInvalido("não há boleta para publicar")
+        origem = Path(boletas[0].caminho_local)
+        if publicador is not None:
+            if dry_run_publicar:
+                previsao = publicador.prever(ctx.fundo, ctx.competencia, origem)
+                return ResultadoEtapa(dados={"dry_run": True, "previsao": previsao.acao, "destino": previsao.caminho_relativo})
+            feita = publicador.publicar(ctx.fundo, ctx.competencia, origem, forcar=ctx.etapa_exec.forcar)
+            return ResultadoEtapa(
+                [
+                    ArtefatoNovo(
+                        TipoArtefato.BOLETA,
+                        origem,
+                        drive_file_id=feita.file_id,
+                        drive_checksum=feita.sha256,
+                        verificado_em=ctx.agora,
+                    )
+                ],
+                dados={"destino": feita.caminho_relativo, "reaproveitada": feita.reaproveitada},
+            )
         if dry_run_publicar:
             return ResultadoEtapa(dados={"dry_run": True})
-        origem = Path(boletas[0].caminho_local)
         destino = raiz / "_drive_fake" / ctx.competencia.aaaamm / str(ctx.fundo.pk) / origem.name
         destino.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(origem, destino)

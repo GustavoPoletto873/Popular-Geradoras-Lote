@@ -1,15 +1,16 @@
 """`python manage.py run_worker --fila api|browser|excel|drive [--once]`
 
 Os handlers de `baixar_insumos`, `processar_contabil` e `baixar_balancete` falam com o gateway e usam o backend
-configurado em `BRITECH_BACKEND_<OPERACAO>` (fake | api | browser). `popular_excel` e `publicar_drive` ainda são
-STUBS (Fase 6): as filas `excel` e `drive` só sobem com PERMITIR_STUBS_EXCEL_DRIVE=true.
+configurado em `BRITECH_BACKEND_<OPERACAO>` (fake | api | browser). `popular_excel` usa o Excel real com
+EXCEL_BACKEND=com e `publicar_drive` o drive_api com DRIVE_BACKEND=api; em `stub` (padrão) a fila só sobe com
+PERMITIR_STUBS_EXCEL_DRIVE=true. Ver `pipeline/wiring.py`.
 """
 
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.core.management.base import BaseCommand, CommandError
 
-from contabilidade_mensal.integrations.britech.factory import montar_gateway
-from contabilidade_mensal.pipeline import fakes
+from contabilidade_mensal.pipeline import wiring
 from contabilidade_mensal.pipeline.definicao import FILAS
 from contabilidade_mensal.pipeline.worker import Worker
 
@@ -25,17 +26,15 @@ class Command(BaseCommand):
         parser.add_argument("--worker-id", default=None)
 
     def handle(self, *args, **opcoes):
-        if opcoes["fila"] in ("excel", "drive") and not settings.PERMITIR_STUBS_EXCEL_DRIVE:
+        if wiring.fila_exige_stub(opcoes["fila"]) and not settings.PERMITIR_STUBS_EXCEL_DRIVE:
             raise CommandError(
-                f"a fila {opcoes['fila']!r} ainda roda um STUB (Fase 6); defina PERMITIR_STUBS_EXCEL_DRIVE=true "
-                "para usá-lo em homologação (não toca Excel nem Drive)"
+                f"a fila {opcoes['fila']!r} está em modo STUB (EXCEL_BACKEND/DRIVE_BACKEND); use EXCEL_BACKEND=com / "
+                "DRIVE_BACKEND=api, ou PERMITIR_STUBS_EXCEL_DRIVE=true em homologação (não toca Excel nem Drive)"
             )
-        handlers = fakes.montar_handlers(
-            montar_gateway(),
-            settings.STORAGE_ROOT,
-            dry_run_processar=settings.DRY_RUN_PROCESSAR_CONTABIL,
-            dry_run_publicar=settings.DRY_RUN_PUBLICAR_DRIVE,
-        )
+        try:
+            handlers = wiring.montar_handlers_do_ambiente(opcoes["fila"])
+        except ImproperlyConfigured as exc:
+            raise CommandError(str(exc)) from exc
         worker = Worker(opcoes["fila"], handlers, worker_id=opcoes["worker_id"], lote=opcoes["lote"])
         total = worker.rodar(intervalo_s=opcoes["intervalo"], parar_quando_vazio=opcoes["once"])
         self.stdout.write(f"{total} etapa(s) executada(s) na fila {opcoes['fila']}")

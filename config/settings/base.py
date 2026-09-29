@@ -123,6 +123,19 @@ STORAGE_ROOT = Path(env("STORAGE_ROOT") or VAR_DIR / "staging")
 # Excel nem Drive). Os workers dessas filas só sobem com esta flag ligada, para ninguém confundir com o real.
 PERMITIR_STUBS_EXCEL_DRIVE = env_bool("PERMITIR_STUBS_EXCEL_DRIVE", False)
 
+# Etapas 4 e 5 (Fase 6). `stub` = arquivo de mentira no staging; `com` = Excel real (Windows); `api` = drive_api.
+EXCEL_BACKEND = env("EXCEL_BACKEND") or "stub"          # stub | com
+DRIVE_BACKEND = env("DRIVE_BACKEND") or "stub"          # stub | api
+# De onde vem a boleta do mês anterior: `drive` (drive_api) ou `local` (árvore montada em BOLETA_RAIZ_LOCAL, só leitura).
+EXCEL_ORIGEM = env("EXCEL_ORIGEM") or "drive"
+BOLETA_RAIZ_LOCAL = env("BOLETA_RAIZ_LOCAL")
+# drive_api: URL base (até o prefixo que contém `arquivos/`, `pastas/`), token (só ambiente) e a pasta-raiz que contém as
+# pastas de tipo (FII, FIDC…). Em homologação aponte DRIVE_RAIZ_ID para uma pasta HOMOLOG, nunca para a real.
+DRIVE_API = {
+    "url": env("DRIVE_API_URL"),
+    "raiz_id": env("DRIVE_RAIZ_ID"),
+}
+
 # --- Navegador (Playwright). Evidências (screenshot/trace) são dados SENSÍVEIS: pasta restrita, retenção curta. ---
 BROWSER = {
     "headless": env_bool("BROWSER_HEADLESS", True),

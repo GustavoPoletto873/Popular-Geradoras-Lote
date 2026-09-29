@@ -1,5 +1,39 @@
 # Changelog da unificação
 
+## Fase 6 — Etapa Excel e Drive · 2026-09-29
+
+Plano: `06_plano_migracao.md` (Fase 6). Portabilidade para o SimplificaHub_V2: `08_portabilidade_simplificahub_v2.md`.
+
+### O que mudou
+
+- **`populador/fundo.py`** — `popular_arquivo(...)`: popular UM fundo sem o Painel (copia o modelo do mês anterior, limpa, popula, salva). O `runner.processar_fundo` do CLI passou a usá-la (comportamento igual; os 27 testes do populador seguem verdes).
+- **`integrations/excel/`** — `PopuladorExcel` (monta `Origem/`, `Insumos/`, `Saida/` por fundo/execução, uma instância do Excel por chamada, erros tipados `ErroExcel` retentável / `PopulacaoRecusada`) e `origem.py` (`OrigemDrive` baixa o modelo do mês anterior pelo `drive_api`; `OrigemLocal` lê a árvore montada em `G:\`, só leitura; `BoletaAnteriorAusente` não retentável).
+- **`integrations/drive/`** — `DriveApiCliente` (token DRF no header, nunca em erro/log; 401/403 → `DriveAutenticacaoFalhou`, 429/5xx/timeout → `DriveIndisponivel` retentável) e `PublicadorDrive`:
+  - resolve `Tipo/Fundo/Data Base X/AAAAMM`; **Tipo e Fundo não são criados** (nome divergente é cadastro a corrigir → `PastaDriveNaoEncontrada`); `Data Base` e `AAAAMM` são criadas; o id fica em `PastaCompetencia` e pode ser corrigido no admin;
+  - outra planilha na pasta → `DestinoJaExiste` (mesma regra do populador: "Arquivo já existe"), a menos que `--forcar`; mesmo conteúdo → reaproveita sem novo upload;
+  - **verificação por hash:** o `drive_api` não devolve checksum, então baixa o arquivo de volta e compara SHA-256 (uma segunda chance, depois `ArquivoInvalido`);
+  - **dry-run** só lê (`prever`: criar pastas e enviar / enviar / reaproveitar / conflito).
+- **`pipeline/wiring.py`** — monta os handlers do ambiente: `EXCEL_BACKEND=stub|com`, `DRIVE_BACKEND=stub|api`, `EXCEL_ORIGEM=drive|local`. Um worker de `api` não exige Excel nem token do Drive. `stub` só sobe com `PERMITIR_STUBS_EXCEL_DRIVE=true`; **produção recusa stubs**.
+- **Comandos:** `testar_drive` (resolve o caminho e lista o destino, sem criar nada; `--boleta` diz o que a publicação faria).
+- **`conftest.py`:** marcadores passam a ser detectados por marcador (não por palavra no nome do teste); novo `--run-excel`.
+
+### Testes (380 passando, 6 pulados; +3 com `--run-excel`)
+
+- **Excel REAL via COM** (`tests/test_excel_real.py --run-excel`, nesta máquina): boleta-modelo sintética + insumos com os nomes canônicos do pipeline → o Excel copia, limpa (o valor do mês anterior sumiu), popula (comparado célula a célula com o arquivo de origem) e salva; a extensão é herdada (**`.xlsb` gerado pelo próprio Excel**, lido de volta por COM); o modelo do mês anterior não é alterado. Nenhum `EXCEL.EXE` órfão ficou.
+- Drive: 22 (cliente HTTP simulado + publicador com Drive em memória: hash, idempotência, conflito, forçar, corrupção, dry-run, id corrigido à mão). Adapter/pipeline: 12 (pipeline de um fundo com Excel e Drive de mentira: publica 1×, reexecução não reenvia, dry-run só prevê, boleta anterior ausente falha sem retry).
+
+### Respostas a perguntas abertas
+
+- **Q20 (drive_api):** (a) autenticação é **DRF Token** (`Authorization: Token …`) — falta saber como o pipeline obtém o seu; (b) **não há checksum** na resposta → verificação por download + SHA-256; (c) pastas são por **id**: `pastas/buscar/?nome&pasta_pai_id` e `POST pastas/`, então o caminho é resolvido nome a nome a partir de `DRIVE_RAIZ_ID`.
+
+### Pendente / não verificado
+
+- **Drive real:** nada foi enviado ao Drive nem ao `drive_api` de verdade (sem URL/token). Validar com `testar_drive` numa pasta HOMOLOG antes de qualquer publicação real.
+- **Excel com a boleta REAL:** o teste usa modelo sintético; falta rodar `populador` (via pipeline) contra uma boleta real de um fundo e comparar com a gerada à mão (critério do plano, exige seu acompanhamento).
+- **Nomes de pasta:** `Tipo` = `Fundo.tipo` do Monday (FII/FIDC/…) e `Fundo` = nome do Monday precisam bater exatamente com as pastas do Drive (Q33).
+- **Q5** segue aberta (o nome/extensão final): hoje herda-se `<fundo> AAAAMM.<ext do mês anterior>`, como o populador.
+- **Nada disto foi exercitado na Britech real.**
+
 ## Fase 5 — Um fundo de ponta a ponta · 2026-09-29
 
 Plano: `06_plano_migracao.md` (Fase 5). Roteiro de agendamento: `07_agendador_windows.md`.

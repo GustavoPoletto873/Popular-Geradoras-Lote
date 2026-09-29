@@ -10,14 +10,15 @@ Tudo roda na VM Windows dedicada (sessão de usuário sempre logada, por causa d
 | `cm-iniciar-execucao` | diária, 07:00 (o comando é idempotente) | `manage.py iniciar_execucao --competencia auto --disparada-por agendador` |
 | `cm-worker-api` | ao logon + repetir a cada 5 min | `manage.py run_worker --fila api` |
 | `cm-worker-browser` | ao logon + repetir a cada 5 min | `manage.py run_worker --fila browser` |
-| `cm-worker-excel` / `cm-worker-drive` | (Fase 6) | `manage.py run_worker --fila excel` / `drive` |
+| `cm-worker-excel` | ao logon (sessão do usuário, com Excel) + repetir a cada 5 min | `manage.py run_worker --fila excel` (com `EXCEL_BACKEND=com`) |
+| `cm-worker-drive` | ao logon + repetir a cada 5 min | `manage.py run_worker --fila drive` (com `DRIVE_BACKEND=api`) |
 
 Regras que fazem isso funcionar:
 
 - **`iniciar_execucao --competencia auto`** usa o mês anterior ao de hoje e, sem `--forcar`, só inclui fundos que ainda não concluíram tudo e que não têm etapa em andamento. Rodar todo dia até o fim do mês é seguro: depois de concluído imprime "nada a fazer".
 - **Workers:** cada instância processa a fila até esvaziar e fica consultando (`--intervalo`). Configure a tarefa com "Não iniciar nova instância se já estiver em execução"; se o processo cair, a repetição de 5 min o reinicia, e o *lease* devolve à fila a etapa que estava em andamento.
 - **Um worker por fila** basta no começo. A concorrência por credencial já é garantida pela trava (`britech:<administradora>`), então subir dois workers `browser` não abre duas sessões da mesma credencial.
-- **Nada de Excel/Drive reais até a Fase 6:** as filas `excel` e `drive` recusam subir sem `PERMITIR_STUBS_EXCEL_DRIVE=true` (só para homologação; o stub não toca Excel nem Drive).
+- **Excel e Drive:** `EXCEL_BACKEND=com` e `DRIVE_BACKEND=api` ligam os reais; em `stub` (padrão) a fila só sobe com `PERMITIR_STUBS_EXCEL_DRIVE=true` (homologação; o stub não toca Excel nem Drive) e a **produção recusa stubs**. O worker `excel` precisa rodar na sessão de um usuário logado com Office.
 
 ## Criar as tarefas (exemplo, PowerShell como o usuário da VM)
 

@@ -3,7 +3,7 @@
 Este repositório reúne duas coisas:
 
 1. **`populador/` + `cli.py`** — substituto em Python do botão `ProcessarEmLoop` do *Painel Populador* (etapa Excel). Funciona hoje; ver "Populador" abaixo.
-2. **`contabilidade_mensal/`** — esqueleto do pipeline unificado (Britech por API/navegador → Excel → Drive), em construção. **Fases 1–5 prontas** (orquestração, fila, gateway fake; insumos por API, cadastro do Monday; sessão e telas do Playwright). Ainda não validado com a Britech real (ver changelog). Agendamento: **Agendador de Tarefas do Windows** (sem n8n).
+2. **`contabilidade_mensal/`** — esqueleto do pipeline unificado (Britech por API/navegador → Excel → Drive), em construção. **Fases 1–6 prontas** (orquestração, fila, gateway fake; insumos por API, cadastro do Monday; sessão e telas do Playwright). Ainda não validado com a Britech real (ver changelog). Agendamento: **Agendador de Tarefas do Windows** (sem n8n).
 
 Documentação de projeto: [`docs/unificacao/`](docs/unificacao/) (processo, arquitetura, plano, perguntas abertas, changelog).
 
@@ -32,6 +32,7 @@ python manage.py comparar_insumos --a C:\tmp\api --b "<pasta Insumos do Simplifi
 Credenciais da Britech: variáveis de ambiente `BRITECH_<REF>_USER` / `BRITECH_<REF>_SENHA` (ex.: `BRITECH_ID_CORRETORA_USER`). Nunca em arquivo versionado ou em pasta compartilhada.
 
 - **Iniciar uma competência** (o que o Agendador chama): `python manage.py iniciar_execucao --competencia auto` (ou `2026-08`; `--dry-run` só mostra). **Ver a matriz:** `python manage.py mostrar_matriz --competencia 2026-08` ou o admin. Roteiro do Agendador: [`docs/unificacao/07_agendador_windows.md`](docs/unificacao/07_agendador_windows.md).
+- `--run-excel` liga os testes com o Excel real (COM). Mudança futura para o SimplificaHub_V2: [`docs/unificacao/08_portabilidade_simplificahub_v2.md`](docs/unificacao/08_portabilidade_simplificahub_v2.md).
 - `--run-browser` liga os testes marcados `@pytest.mark.browser` (Fase 3 em diante).
 - Testes de concorrência em Postgres: ver o docstring de `tests/test_concorrencia_postgres.py`.
 - **Reprocessar uma etapa/fundo:** no admin do Django, selecione as `EtapaExecucao` e use a ação *Reprocessar selecionadas*; por código, `pipeline.servicos.criar_execucao(..., etapas=[...], forcar=True, cascata=True)`. Por linha de comando: `iniciar_execucao --forcar --cascata --etapas baixar_balancete`.

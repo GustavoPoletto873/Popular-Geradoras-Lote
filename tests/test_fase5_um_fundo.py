@@ -191,3 +191,54 @@ def test_filas_de_stub_exigem_a_flag(fila, settings, db):
 def test_run_worker_aceita_backends_reais_configurados(settings, db):
     settings.BRITECH_BACKENDS = {op: "api" for op in settings.BRITECH_BACKENDS}
     call_command("run_worker", fila="api", once=True, stdout=StringIO())  # monta o gateway api sem erro
+
+
+# --- Fase 6: ligação de Excel e Drive reais ------------------------------------------------------------------------------
+
+
+def test_excel_real_sem_origem_configurada_recusa_subir(settings, db):
+    settings.EXCEL_BACKEND = "com"
+    settings.EXCEL_ORIGEM = "local"
+    settings.BOLETA_RAIZ_LOCAL = None
+    with pytest.raises(CommandError, match="BOLETA_RAIZ_LOCAL"):
+        call_command("run_worker", fila="excel", once=True)
+
+
+def test_drive_real_sem_token_recusa_subir(settings, monkeypatch, db):
+    settings.DRIVE_BACKEND = "api"
+    settings.DRIVE_API = {"url": "https://drive.exemplo/api", "raiz_id": "raiz"}
+    monkeypatch.delenv("DRIVE_API_TOKEN", raising=False)
+    from contabilidade_mensal.integrations.britech.erros import BritechErro
+
+    with pytest.raises(BritechErro, match="DRIVE_API_TOKEN"):
+        call_command("run_worker", fila="drive", once=True)
+
+
+def test_worker_de_api_nao_precisa_de_excel_nem_de_drive(settings, db):
+    settings.EXCEL_BACKEND = "com"
+    settings.DRIVE_BACKEND = "api"
+    settings.DRIVE_API = {"url": None, "raiz_id": None}
+    call_command("run_worker", fila="api", once=True, stdout=StringIO())  # não monta Excel nem cliente do Drive
+
+
+def test_producao_recusa_stubs(monkeypatch):
+    import importlib
+
+    from django.core.exceptions import ImproperlyConfigured
+
+    monkeypatch.setenv("DB_ENGINE", "postgres")
+    monkeypatch.setenv("DJANGO_SECRET_KEY", "uma-chave-de-teste-longa-o-bastante")
+    for op in ("BAIXAR_INSUMO", "PROCESSAR_CONTABIL", "STATUS_PROCESSAMENTO", "BAIXAR_BALANCETE"):
+        monkeypatch.setenv(f"BRITECH_BACKEND_{op}", "api")
+    monkeypatch.setenv("EXCEL_BACKEND", "stub")
+    import config.settings.base as base
+
+    importlib.reload(base)
+    try:
+        with pytest.raises(ImproperlyConfigured, match="EXCEL_BACKEND=com"):
+            import config.settings.prod as prod
+
+            importlib.reload(prod)
+    finally:
+        monkeypatch.undo()
+        importlib.reload(base)
