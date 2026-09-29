@@ -1,4 +1,8 @@
 from django.contrib import admin
+from django.shortcuts import get_object_or_404
+from django.template.response import TemplateResponse
+from django.urls import path, reverse
+from django.utils.html import format_html
 
 from . import models
 
@@ -17,7 +21,31 @@ class FundoAdmin(admin.ModelAdmin):
 
 @admin.register(models.Competencia)
 class CompetenciaAdmin(admin.ModelAdmin):
-    list_display = ("aaaamm", "status")
+    list_display = ("aaaamm", "status", "matriz_link")
+
+    @admin.display(description="Matriz")
+    def matriz_link(self, obj):
+        return format_html('<a href="{}">fundo × etapa</a>', reverse("admin:core_competencia_matriz", args=[obj.pk]))
+
+    def get_urls(self):
+        return [
+            path("<int:pk>/matriz/", self.admin_site.admin_view(self.matriz_view), name="core_competencia_matriz"),
+            *super().get_urls(),
+        ]
+
+    def matriz_view(self, request, pk):
+        from contabilidade_mensal.pipeline import servicos
+        from contabilidade_mensal.pipeline.definicao import ORDEM
+
+        competencia = get_object_or_404(models.Competencia, pk=pk)
+        contexto = {
+            **self.admin_site.each_context(request),
+            "title": f"Matriz fundo × etapa — {competencia.aaaamm}",
+            "competencia": competencia,
+            "etapas": ORDEM,
+            "linhas": servicos.matriz(competencia),
+        }
+        return TemplateResponse(request, "admin/core/matriz.html", contexto)
 
 
 @admin.register(models.Execucao)

@@ -1,7 +1,8 @@
 """`python manage.py run_worker --fila api|browser|excel|drive [--once]`
 
-Fase 1: só existem os handlers FAKE, então o comando exige que todos os backends estejam
-em `fake`. Os handlers reais entram nas Fases 2–6.
+Os handlers de `baixar_insumos`, `processar_contabil` e `baixar_balancete` falam com o gateway e usam o backend
+configurado em `BRITECH_BACKEND_<OPERACAO>` (fake | api | browser). `popular_excel` e `publicar_drive` ainda são
+STUBS (Fase 6): as filas `excel` e `drive` só sobem com PERMITIR_STUBS_EXCEL_DRIVE=true.
 """
 
 from django.conf import settings
@@ -24,10 +25,10 @@ class Command(BaseCommand):
         parser.add_argument("--worker-id", default=None)
 
     def handle(self, *args, **opcoes):
-        fora_do_fake = {op: b for op, b in settings.BRITECH_BACKENDS.items() if b != "fake"}
-        if fora_do_fake:
+        if opcoes["fila"] in ("excel", "drive") and not settings.PERMITIR_STUBS_EXCEL_DRIVE:
             raise CommandError(
-                f"handlers reais ainda não existem (Fases 2–6); backends configurados fora do fake: {fora_do_fake}"
+                f"a fila {opcoes['fila']!r} ainda roda um STUB (Fase 6); defina PERMITIR_STUBS_EXCEL_DRIVE=true "
+                "para usá-lo em homologação (não toca Excel nem Drive)"
             )
         handlers = fakes.montar_handlers(
             montar_gateway(),

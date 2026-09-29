@@ -1,5 +1,30 @@
 # Changelog da unificação
 
+## Fase 5 — Um fundo de ponta a ponta · 2026-09-29
+
+Plano: `06_plano_migracao.md` (Fase 5). Roteiro de agendamento: `07_agendador_windows.md`.
+
+### O que mudou
+
+- **`manage.py iniciar_execucao`** — o gatilho do Agendador (e do operador). `--competencia auto|AAAA-MM`, `--administradora`, `--fundos`, `--etapas`, `--forcar`, `--cascata`, `--somente-pendentes`, `--dry-run`, `--disparada-por`. Com `auto` (e sem `--forcar`) só entram fundos que ainda não concluíram tudo e sem etapa em andamento, então rodar todo dia é seguro. Fundos sem CNPJ ou sem mês do exercício são **avisados e deixados de fora** (falhariam com `cadastro_incompleto`); código de fundo inexistente é erro.
+- **Matriz fundo × etapa** — `servicos.matriz`, comando `mostrar_matriz --competencia AAAA-MM` e página no admin (Competências > "fundo × etapa"). Mostra o estado **vigente**: uma reexecução que só "pulou por idempotência" não transforma sucesso em "pulado".
+- **`run_worker` deixa de exigir backend `fake`**: usa `BRITECH_BACKEND_<OP>` (fake | api | browser). As filas `excel` e `drive` (ainda STUBS até a Fase 6) só sobem com `PERMITIR_STUBS_EXCEL_DRIVE=true`.
+- **`docs/unificacao/07_agendador_windows.md`** — tarefas, comandos `schtasks`, regras de repetição/instância única e ordem segura para ligar em produção.
+
+### Critério de pronto (testes: 17 novos, contra o gateway fake)
+
+- Um fundo percorre as 5 etapas até `sucesso` pelos comandos do Agendador, e **todo log de handler leva o `correlation_id` da execução**.
+- **Reexecutar** não duplica: 2ª execução, todas `pulado` (`idempotencia`), nenhum artefato novo.
+- **Reprocessar** o balancete com `--forcar --cascata` refaz balancete → excel → drive (sucesso, não pulado) e só isso.
+- O gatilho diário não cria execução se já há etapa em andamento nem se tudo concluiu; fundo com falha volta a entrar na rodada seguinte.
+- Matriz no admin (HTTP 200 com os 5 sucessos) e recusa dos workers de stub sem a flag.
+
+### Pendente / não verificado
+
+- **Não rodei um fundo real** (nem em homologação com Britech real): os testes usam o backend `fake`. O "fundo de teste" real depende de você (Q8/Q29) e da política de conclusão (Q30).
+- **Postgres:** a concorrência real entre workers continua sem teste (sem Postgres aqui).
+- `popular_excel`/`publicar_drive` seguem STUBS até a Fase 6; alertas e watchdog, Fase 7.
+
 ## Fase 4 — Fluxos de processar e baixar balancete · 2026-09-29
 
 Plano: `06_plano_migracao.md` (Fase 4). **Q4 continua sem resposta**, então a detecção de conclusão do "Processar Contábil" é configurável (abaixo) em vez de adivinhada.

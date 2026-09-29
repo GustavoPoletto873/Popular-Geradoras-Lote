@@ -1,0 +1,19 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<table>
+  <thead><tr><th>Fundo</th>{% for e in etapas %}<th>{{ e }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for linha in linhas %}
+    <tr>
+      <td>{{ linha.fundo.nome }} <small>({{ linha.fundo.administradora.nome }} / {{ linha.fundo.codigo_britech }})</small></td>
+      {% for c in linha.celulas %}
+        <td class="status-{{ c.status|default:'nenhum' }}">{{ c.status|default:"-" }}{% if c.erro %}<br><small>{{ c.erro }}</small>{% endif %}</td>
+      {% endfor %}
+    </tr>
+  {% empty %}
+    <tr><td colspan="{{ etapas|length|add:1 }}">Nenhuma execução nesta competência.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<style>.status-sucesso{color:#15803d}.status-falha{color:#b91c1c;font-weight:bold}.status-pulado{color:#92400e}.status-aguardando_britech{color:#1d4ed8}</style>
+{% endblock %}

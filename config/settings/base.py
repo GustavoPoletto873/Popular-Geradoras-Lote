@@ -119,6 +119,10 @@ ALLOWLIST_PROCESSAR_CONTABIL = env_lista("ALLOWLIST_PROCESSAR_CONTABIL")
 
 STORAGE_ROOT = Path(env("STORAGE_ROOT") or VAR_DIR / "staging")
 
+# Até a Fase 6, `popular_excel` e `publicar_drive` são STUBS (geram arquivo de mentira dentro do staging, sem tocar
+# Excel nem Drive). Os workers dessas filas só sobem com esta flag ligada, para ninguém confundir com o real.
+PERMITIR_STUBS_EXCEL_DRIVE = env_bool("PERMITIR_STUBS_EXCEL_DRIVE", False)
+
 # --- Navegador (Playwright). Evidências (screenshot/trace) são dados SENSÍVEIS: pasta restrita, retenção curta. ---
 BROWSER = {
     "headless": env_bool("BROWSER_HEADLESS", True),
