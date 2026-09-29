@@ -17,6 +17,7 @@ import logging
 import requests
 
 from ..erros import AutenticacaoFalhou, ErroApiBritech, LimiteTaxa, TimeoutBritech
+from .limite import TokenBucket
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,11 @@ class ClienteBritech:
         self._auth = (usuario, senha)
         self._sessao = sessao or requests.Session()
         self._timeout = timeout
+        self._balde: TokenBucket | None = None
+
+    def usar_balde(self, balde: TokenBucket | None) -> None:
+        """Limita a taxa de requisições deste cliente (o balde pode ser compartilhado entre clientes/threads)."""
+        self._balde = balde
 
     def fechar(self) -> None:
         self._sessao.close()
@@ -52,13 +58,20 @@ class ClienteBritech:
     def get(self, caminho_e_query: str) -> requests.Response:
         """GET em `<base>/<caminho_e_query>`; só devolve respostas 2xx."""
         url = f"{self.base}/{caminho_e_query.lstrip('/')}"
+        if self._balde is not None:
+            self._balde.adquirir()
         try:
             resposta = self._sessao.get(url, auth=self._auth, timeout=self._timeout)
         except requests.Timeout as exc:
             raise TimeoutBritech(f"tempo esgotado em {caminho_e_query.split('?')[0]}") from exc
         except requests.ConnectionError as exc:
             raise ErroApiBritech(f"sem conexão com a Britech ({type(exc).__name__})") from exc
-        self._validar(resposta, caminho_e_query)
+        try:
+            self._validar(resposta, caminho_e_query)
+        except LimiteTaxa as exc:
+            if self._balde is not None and exc.espera_s:
+                self._balde.penalizar(exc.espera_s)
+            raise
         return resposta
 
     def get_bytes(self, caminho_e_query: str) -> bytes:

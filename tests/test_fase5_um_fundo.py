@@ -242,3 +242,22 @@ def test_producao_recusa_stubs(monkeypatch):
     finally:
         monkeypatch.undo()
         importlib.reload(base)
+
+
+def test_painel_mostra_resumo_disjuntor_aguardando_e_alertas(
+    criar_fundo, competencia, relogio, handlers, fake, client, django_user_model, settings, db
+):
+    from contabilidade_mensal.integrations.britech.erros import TelaMudou
+
+    settings.PIPELINE = {"processamento_conclusao": "manual", "polling_timeout_s": 10**6}
+    for codigo in (1001, 1002, 1003):
+        criar_fundo(codigo)
+        fake.programar("processar_contabil", str(codigo), TelaMudou("mudou")) if codigo != 1003 else None
+    iniciar(competencia="2026-08")
+    drenar(FILAS, handlers, relogio, max_ciclos=12)
+    django_user_model.objects.create_superuser("admin", "a@b.c", "senha-de-teste")
+    client.login(username="admin", password="senha-de-teste")
+    html = client.get(f"/admin/core/competencia/{competencia.pk}/matriz/").content.decode()
+    assert "Resumo:" in html and "falha" in html
+    assert "Aguardando a Britech" in html and "FUNDO 1003" in html
+    assert "Últimos alertas" in html and "tela_mudou" in html or "Uma tela da Britech mudou" in html

@@ -225,3 +225,23 @@ class TravaRecurso(models.Model):
 
     def __str__(self) -> str:
         return f"{self.chave} -> {self.dono}"
+
+
+class Alerta(models.Model):
+    """Todo alerta gerado (enviado ou não): auditoria e painel. Repetições dentro da janela só incrementam `repeticoes`."""
+
+    chave = models.CharField(max_length=160, db_index=True)
+    severidade = models.CharField(max_length=10, default="aviso")
+    titulo = models.CharField(max_length=250)
+    corpo = models.TextField(blank=True)
+    criado_em = models.DateTimeField(default=timezone.now)
+    canais = models.CharField(max_length=40, blank=True, help_text="canais configurados quando foi gerado")
+    enviado_em = models.DateTimeField(null=True, blank=True)
+    erro_envio = models.TextField(blank=True)
+    repeticoes = models.PositiveIntegerField(default=0, help_text="ocorrências suprimidas por duplicidade")
+
+    class Meta:
+        ordering = ["-criado_em"]
+
+    def __str__(self) -> str:
+        return self.titulo

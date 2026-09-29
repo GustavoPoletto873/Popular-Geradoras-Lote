@@ -13,3 +13,4 @@ pywin32>=311; sys_platform == "win32"
 
 # Backend por navegador (Fases 3-4). Depois de instalar: `playwright install chromium`
 playwright>=1.60
+psutil>=6.0          # watchdog de processos órfãos

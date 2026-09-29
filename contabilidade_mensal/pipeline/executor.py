@@ -19,7 +19,7 @@ from contabilidade_mensal.core.models import EtapaExecucao
 from contabilidade_mensal.integrations.britech.erros import ArquivoInvalido, BritechErro, ProcessamentoPendente
 from contabilidade_mensal.observability.logging import contexto
 
-from . import disjuntor, fila, parametros
+from . import disjuntor, fila, notificacoes, parametros
 from .definicao import chave_disjuntor
 from .tipos import ContextoEtapa, Handler, ResultadoEtapa
 
@@ -100,15 +100,19 @@ def _aguardar(e: EtapaExecucao, ctx: ContextoEtapa, exc: ProcessamentoPendente, 
             payload=ctx.payload,
             agora=agora,
         )
+    primeira_vez = e.aguardando_desde is None
     fila.aguardar_britech(e, intervalo_s=exc.espera_s or p.polling_intervalo_s, payload=ctx.payload, agora=agora)
+    if primeira_vez and p.processamento_conclusao == "manual":
+        notificacoes.aguardando_confirmacao(e, agora=agora)
     logger.info("aguardando a Britech")
     return e.status
 
 
 def _tratar_erro_britech(e: EtapaExecucao, exc: BritechErro, chave_dj: str, payload: dict, agora) -> str:
     logger.warning("erro da Britech", extra={"erro_tipo": exc.codigo, "retentavel": exc.retentavel, "detalhe": str(exc)})
-    if exc.conta_para_disjuntor:
-        disjuntor.registrar_falha(chave_dj, exc.codigo, agora=agora)
+    if exc.conta_para_disjuntor and disjuntor.registrar_falha(chave_dj, exc.codigo, agora=agora):
+        notificacoes.disjuntor_aberto(chave_dj, exc.codigo, agora=agora)
+    notificacoes.erro_critico(e, exc.codigo, str(exc), agora=agora)
     return fila.registrar_falha(
         e, exc.codigo, str(exc), retentavel=exc.retentavel, espera_s=exc.espera_s, payload=payload, agora=agora
     )

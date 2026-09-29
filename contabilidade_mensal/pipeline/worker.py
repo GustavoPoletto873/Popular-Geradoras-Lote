@@ -11,6 +11,7 @@ import os
 import socket
 import time
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import AbstractContextManager, nullcontext
 
 from django.db.models import Min
 from django.utils import timezone
@@ -19,6 +20,7 @@ from contabilidade_mensal.core.choices import StatusEtapa
 from contabilidade_mensal.core.models import EtapaExecucao
 
 from . import executor, fila, travas
+from .heartbeat import Heartbeat
 from .relogio import RelogioSimulado
 from .tipos import Handler
 
@@ -38,12 +40,16 @@ class Worker:
         worker_id: str | None = None,
         lote: int = 1,
         relogio: Callable = timezone.now,
+        heartbeat: bool = False,
+        abrir_lote: "Callable[[Sequence[EtapaExecucao]], AbstractContextManager] | None" = None,
     ) -> None:
         self.fila = fila_nome
         self.handlers = handlers
         self.worker_id = worker_id or worker_id_padrao(fila_nome)
         self.lote = lote
         self.relogio = relogio
+        self.heartbeat = heartbeat  # renova lease/trava em segundo plano (workers de verdade; desligado no `drenar`)
+        self.abrir_lote = abrir_lote  # ex.: `gateway.lote(adm)` para uma sessão só por lote de uma credencial
 
     def ciclo(self) -> int:
         """Um ciclo: recupera órfãs, reivindica um lote e o executa. Devolve quantas etapas rodou."""
@@ -51,11 +57,15 @@ class Worker:
         fila.recuperar_orfas(agora=agora)
         etapas = fila.reivindicar(self.fila, self.worker_id, limite=self.lote, agora=agora)
         try:
-            for etapa in etapas:
-                try:
-                    executor.executar(etapa, self.handlers, relogio=self.relogio)
-                except Exception:  # noqa: BLE001 - o lease recupera a etapa; o worker segue vivo
-                    logger.exception("falha ao executar etapa", extra={"etapa_execucao_id": etapa.pk})
+            with (
+                Heartbeat(etapas, self.worker_id) if self.heartbeat else nullcontext(),
+                self.abrir_lote(etapas) if (self.abrir_lote and len(etapas) > 1) else nullcontext(),
+            ):
+                for etapa in etapas:
+                    try:
+                        executor.executar(etapa, self.handlers, relogio=self.relogio)
+                    except Exception:  # noqa: BLE001 - o lease recupera a etapa; o worker segue vivo
+                        logger.exception("falha ao executar etapa", extra={"etapa_execucao_id": etapa.pk})
         finally:
             for chave in {e.lock_key for e in etapas if e.lock_key}:
                 travas.liberar(chave, self.worker_id)

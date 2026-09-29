@@ -45,6 +45,7 @@ from ..nomes import nome_insumo_canonico
 from . import urls
 from .cadastro import ClasseDeCotas, ler_cadastro, normalizar_cnpj
 from .cliente import ClienteBritech
+from .limite import balde_da_administradora
 from .credenciais import ProvedorCredenciais
 from .transformacoes.carteira import transformar_composicao_carteira
 from .transformacoes.empilhar import empilhar
@@ -124,7 +125,10 @@ class ApiBackend:
 
     def abrir_sessao(self, administradora: AdministradoraRef) -> SessaoApi:
         credencial = self._credenciais.obter(administradora.segredo_ref)
-        return SessaoApi(self._fabrica_cliente(administradora.url_adm, credencial.usuario, credencial.senha))
+        cliente = self._fabrica_cliente(administradora.url_adm, credencial.usuario, credencial.senha)
+        if hasattr(cliente, "usar_balde"):
+            cliente.usar_balde(balde_da_administradora(administradora.url_adm))
+        return SessaoApi(cliente)
 
     def processar_contabil(self, sessao, carteiras: Sequence[CarteiraRef], competencia, *, dry_run: bool) -> ResultadoDisparo:
         raise OperacaoNaoSuportada("processar_contabil não tem endpoint na API; use o backend 'browser'")

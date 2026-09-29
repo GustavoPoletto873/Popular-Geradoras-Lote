@@ -24,7 +24,7 @@ from django.utils import timezone
 from contabilidade_mensal.core.choices import StatusEtapa as S
 from contabilidade_mensal.core.models import Artefato, EstadoEtapa, EtapaExecucao
 
-from . import artefatos, disjuntor, parametros, servicos, travas
+from . import artefatos, disjuntor, notificacoes, parametros, servicos, travas
 from .backoff import calcular_backoff
 from .definicao import DEPENDENCIAS, a_jusante, chave_disjuntor
 from .estados import ESTADOS_ABERTOS, TransicaoInvalida, validar_transicao
@@ -247,6 +247,7 @@ def registrar_falha(
     _atualizar_estado_vigente(e)
     propagar_falha(e, agora=agora)
     servicos.atualizar_status_execucao(e.execucao, agora=agora)
+    notificacoes.falha_definitiva(e, agora=agora)
     return S.FALHA
 
 
@@ -331,6 +332,7 @@ def recuperar_orfas(*, agora: dt.datetime | None = None) -> int:
                 _atualizar_estado_vigente(e)
                 propagar_falha(e, agora=agora)
                 servicos.atualizar_status_execucao(e.execucao, agora=agora)
+                notificacoes.falha_definitiva(e, agora=agora)
             else:
                 _transicionar(
                     e,

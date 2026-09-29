@@ -1,5 +1,19 @@
 {% extends "admin/base_site.html" %}
 {% block content %}
+<p><strong>Resumo:</strong> {% for status, n in resumo %}{{ n }} {{ status }}{% if not forloop.last %} · {% endif %}{% empty %}nada ainda{% endfor %}</p>
+{% if disjuntores %}
+<div style="border:1px solid #b91c1c;padding:8px;margin:8px 0">
+  <strong>Disjuntores abertos</strong> (a fila dessa chave está pausada; feche depois de corrigir):
+  <ul>{% for d in disjuntores %}<li>{{ d.chave }} — {{ d.motivo }} (desde {{ d.aberto_desde|date:"d/m H:i" }})</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% if aguardando %}
+<div style="border:1px solid #1d4ed8;padding:8px;margin:8px 0">
+  <strong>Aguardando a Britech / confirmação</strong> ({{ aguardando|length }}):
+  {% for e in aguardando|slice:":15" %}{{ e.fundo.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}
+  — na lista de Etapas de execução use a ação "Confirmar que a Britech terminou o processamento".
+</div>
+{% endif %}
 <table>
   <thead><tr><th>Fundo</th>{% for e in etapas %}<th>{{ e }}</th>{% endfor %}</tr></thead>
   <tbody>
@@ -15,5 +29,7 @@
   {% endfor %}
   </tbody>
 </table>
+<h3>Últimos alertas</h3>
+<ul>{% for a in alertas %}<li>{{ a.criado_em|date:"d/m H:i" }} · <strong>{{ a.severidade }}</strong> · {{ a.titulo }}{% if a.repeticoes %} (+{{ a.repeticoes }} repetições){% endif %}{% if not a.enviado_em %} <em>[não enviado]</em>{% endif %}</li>{% empty %}<li>nenhum</li>{% endfor %}</ul>
 <style>.status-sucesso{color:#15803d}.status-falha{color:#b91c1c;font-weight:bold}.status-pulado{color:#92400e}.status-aguardando_britech{color:#1d4ed8}</style>
 {% endblock %}

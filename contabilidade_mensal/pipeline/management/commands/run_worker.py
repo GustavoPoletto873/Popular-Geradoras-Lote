@@ -32,9 +32,16 @@ class Command(BaseCommand):
                 "DRIVE_BACKEND=api, ou PERMITIR_STUBS_EXCEL_DRIVE=true em homologação (não toca Excel nem Drive)"
             )
         try:
-            handlers = wiring.montar_handlers_do_ambiente(opcoes["fila"])
+            ambiente = wiring.montar_ambiente(opcoes["fila"])
         except ImproperlyConfigured as exc:
             raise CommandError(str(exc)) from exc
-        worker = Worker(opcoes["fila"], handlers, worker_id=opcoes["worker_id"], lote=opcoes["lote"])
+        worker = Worker(
+            opcoes["fila"],
+            ambiente.handlers,
+            worker_id=opcoes["worker_id"],
+            lote=opcoes["lote"],
+            heartbeat=True,
+            abrir_lote=wiring.abrir_lote_para(ambiente.gateway),
+        )
         total = worker.rodar(intervalo_s=opcoes["intervalo"], parar_quando_vazio=opcoes["once"])
         self.stdout.write(f"{total} etapa(s) executada(s) na fila {opcoes['fila']}")

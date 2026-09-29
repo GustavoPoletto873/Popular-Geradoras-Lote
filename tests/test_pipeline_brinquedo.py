@@ -141,7 +141,7 @@ def test_erro_retentavel_tenta_de_novo_e_no_fim_da_certo(criar_fundo, rodar, fak
     execucao, _ = rodar([fundo])
     e = EtapaExecucao.objects.get(execucao=execucao, fundo=fundo, etapa=Etapa.BAIXAR_INSUMOS)
     assert e.status == S.SUCESSO and e.tentativas == 3
-    assert (relogio() - inicio).total_seconds() >= 30 + 60 - 30 * 0.4  # esperou os backoffs (com jitter de ±20%)
+    assert (relogio() - inicio).total_seconds() >= (30 + 60) * 0.8  # esperou os backoffs (mínimo possível com jitter de -20% nos dois)
     assert status_de(execucao, fundo) == TODAS_OK
 
 

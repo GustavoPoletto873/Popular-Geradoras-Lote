@@ -103,8 +103,13 @@ def atualizar_status_execucao(execucao: Execucao, *, agora: dt.datetime | None =
         else:
             status, status_competencia = StatusExecucao.CONCLUIDA, StatusCompetencia.CONCLUIDA
         fim = agora
+    anterior = Execucao.objects.filter(pk=execucao.pk).values_list("status", flat=True).first()
     Execucao.objects.filter(pk=execucao.pk).update(status=status, finalizada_em=fim)
     Competencia.objects.filter(pk=execucao.competencia_id).update(status=status_competencia)
+    if anterior == StatusExecucao.EM_ANDAMENTO and status != StatusExecucao.EM_ANDAMENTO:
+        from . import notificacoes  # import tardio: notificacoes usa os modelos e este módulo é importado por fila
+
+        notificacoes.execucao_concluida(execucao, status, agora=agora)
     return status
 
 

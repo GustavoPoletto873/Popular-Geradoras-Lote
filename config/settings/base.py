@@ -136,6 +136,26 @@ DRIVE_API = {
     "raiz_id": env("DRIVE_RAIZ_ID"),
 }
 
+# --- Limite de taxa da API da Britech (token bucket por administradora e por processo). 0 desliga. Limites reais: Q10. ---
+BRITECH_API = {
+    "rps": float(env("BRITECH_API_RPS") or 2),
+    "burst": int(env("BRITECH_API_BURST") or 4),
+}
+
+# --- Alertas (sem n8n): e-mail SMTP e/ou webhook do Slack, enviados pelo Django. Sem canal, só grava e loga. ---
+ALERTAS = {
+    "email_para": env_lista("ALERTAS_EMAIL_PARA"),
+    "email_de": env("ALERTAS_EMAIL_DE"),
+    "slack_webhook": env("ALERTAS_SLACK_WEBHOOK"),  # é um segredo: só ambiente
+    "prefixo": env("ALERTAS_PREFIXO") or "[Contabilidade mensal]",
+}
+EMAIL_HOST = env("EMAIL_HOST") or "localhost"
+EMAIL_PORT = int(env("EMAIL_PORT") or 25)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")  # segredo: só ambiente
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", False)
+EMAIL_TIMEOUT = 10
+
 # --- Navegador (Playwright). Evidências (screenshot/trace) são dados SENSÍVEIS: pasta restrita, retenção curta. ---
 BROWSER = {
     "headless": env_bool("BROWSER_HEADLESS", True),

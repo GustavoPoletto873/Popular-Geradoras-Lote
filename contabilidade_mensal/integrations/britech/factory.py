@@ -9,11 +9,12 @@ nunca sobe o Chromium.
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 
-from .erros import BackendNaoDisponivel, SessaoBloqueada
+from .erros import BackendNaoDisponivel, BritechErro, SessaoBloqueada
 from .fake import FakeBackend
 from .interface import (
     AdministradoraRef,
@@ -95,13 +96,55 @@ class BritechGateway:
                 raise BackendNaoDisponivel(f"operação {operacao!r} aponta para o backend {nome!r}, que não foi fornecido")
         self._backends = dict(backends)
         self._config = dict(config)
+        self._local = threading.local()  # sessões compartilhadas de um lote (por thread)
+
+    @staticmethod
+    def _chave(administradora: AdministradoraRef) -> tuple[str, str, str]:
+        return (administradora.nome, administradora.url_adm, administradora.segredo_ref)
+
+    def _compartilhadas(self) -> dict:
+        if not hasattr(self._local, "abertas"):
+            self._local.abertas = {}
+        return self._local.abertas
 
     def backend_de(self, operacao: str) -> str:
         return self._config[operacao]
 
     @contextmanager
+    def lote(self, administradora: AdministradoraRef) -> Iterator[None]:
+        """Dentro do bloco, `sessao(administradora)` REAPROVEITA uma sessão (login uma vez para várias etapas da mesma
+        credencial). O logout acontece ao sair do bloco — ou antes, se uma etapa deixar a sessão duvidosa."""
+        chave = self._chave(administradora)
+        compartilhadas = self._compartilhadas()
+        if chave in compartilhadas:  # lote aninhado: quem abriu é quem fecha
+            yield
+            return
+        compartilhadas[chave] = SessaoComposta(administradora, self._backends)
+        try:
+            yield
+        finally:
+            composta = compartilhadas.pop(chave, None)
+            if composta is not None:
+                composta.fechar()
+
+    @contextmanager
     def sessao(self, administradora: AdministradoraRef) -> Iterator[SessaoComposta]:
-        """Login … trabalho … logout garantido, mesmo em erro."""
+        """Login … trabalho … logout garantido, mesmo em erro. Em um `lote`, reaproveita a sessão do lote."""
+        chave = self._chave(administradora)
+        compartilhada = self._compartilhadas().get(chave)
+        if compartilhada is not None:
+            try:
+                yield compartilhada
+            except BritechErro as exc:
+                if exc.conta_para_disjuntor:  # sessão suspeita: fecha agora; a próxima etapa do lote abre outra
+                    if self._compartilhadas().get(chave) is compartilhada:
+                        self._compartilhadas()[chave] = SessaoComposta(administradora, self._backends)
+                    try:
+                        compartilhada.fechar()
+                    except BritechErro:  # o erro original é o que importa; o do logout já foi logado por fechar()
+                        logger.error("logout da sessão compartilhada também falhou", exc_info=True)
+                raise
+            return
         composta = SessaoComposta(administradora, self._backends)
         try:
             yield composta

@@ -1,3 +1,5 @@
+import collections
+
 from django.contrib import admin
 from django.shortcuts import get_object_or_404
 from django.template.response import TemplateResponse
@@ -38,12 +40,20 @@ class CompetenciaAdmin(admin.ModelAdmin):
         from contabilidade_mensal.pipeline.definicao import ORDEM
 
         competencia = get_object_or_404(models.Competencia, pk=pk)
+        linhas = servicos.matriz(competencia)
+        resumo = collections.Counter(c["status"] or "sem execução" for linha in linhas for c in linha["celulas"])
         contexto = {
             **self.admin_site.each_context(request),
             "title": f"Matriz fundo × etapa — {competencia.aaaamm}",
             "competencia": competencia,
             "etapas": ORDEM,
-            "linhas": servicos.matriz(competencia),
+            "linhas": linhas,
+            "resumo": sorted(resumo.items()),
+            "disjuntores": models.Disjuntor.objects.filter(aberto_desde__isnull=False),
+            "aguardando": models.EtapaExecucao.objects.filter(
+                execucao__competencia=competencia, status="aguardando_britech"
+            ).select_related("fundo"),
+            "alertas": models.Alerta.objects.all()[:10],
         }
         return TemplateResponse(request, "admin/core/matriz.html", contexto)
 
@@ -105,3 +115,11 @@ class DisjuntorAdmin(admin.ModelAdmin):
 @admin.register(models.TravaRecurso)
 class TravaRecursoAdmin(admin.ModelAdmin):
     list_display = ("chave", "dono", "lease_ate")
+
+
+@admin.register(models.Alerta)
+class AlertaAdmin(admin.ModelAdmin):
+    list_display = ("criado_em", "severidade", "titulo", "canais", "enviado_em", "repeticoes")
+    list_filter = ("severidade",)
+    search_fields = ("titulo", "chave")
+    readonly_fields = [f.name for f in models.Alerta._meta.fields]

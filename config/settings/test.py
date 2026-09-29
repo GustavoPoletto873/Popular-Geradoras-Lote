@@ -14,3 +14,5 @@ BRITECH_BACKENDS = {  # testes nunca falam com a Britech
     "baixar_balancete": "fake",
 }
 LOGGING["loggers"]["contabilidade_mensal"]["level"] = "WARNING"  # noqa: F405
+BRITECH_API = {"rps": 0, "burst": 1}  # sem limite de taxa nos testes (os testes do balde ligam explicitamente)
+ALERTAS = {}
