@@ -1,0 +1,4 @@
+[
+ "https://id.britech.com.br/WS/api/Relatorio/RelatorioComposicaoCarteira?&IdCarteira=111&DataReferencia=2025-11-28&IdMoeda=1&SeparaCustodia=N&AgrupaValoresLiquidacao=N&DemonstraGrossUp=S&AgrupaDireitoCreditorio=S&IdLingua=1&TipoRelatorio=1&DespesasSubclasse=S&TipoArquivo=ExcelAlinhado",
+ "https://id.britech.com.br/WS/api/Relatorio/RelatorioComposicaoCarteira?&IdCarteira=111&DataReferencia=2025-11-28&IdMoeda=1&SeparaCustodia=N&AgrupaValoresLiquidacao=N&DemonstraGrossUp=S&AgrupaDireitoCreditorio=S&IdLingua=1&TipoRelatorio=1&DespesasSubclasse=S&TipoArquivo=PDF"
+]

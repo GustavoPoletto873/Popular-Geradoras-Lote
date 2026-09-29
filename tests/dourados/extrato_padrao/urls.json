@@ -1,0 +1,4 @@
+[
+ "https://id.britech.com.br/WS/api/Relatorio/RelatorioExtratoContaCorrente?IdCliente=111&DataInicio=2025-12-01&DataFim=2026-08-31&Periodo=1&TipoArquivo=Excel",
+ "https://id.britech.com.br/WS/api/Relatorio/RelatorioExtratoContaCorrente?IdCliente=111&DataInicio=2025-12-01&DataFim=2026-08-31&Periodo=1&TipoArquivo=PDF"
+]

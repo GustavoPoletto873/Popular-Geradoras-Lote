@@ -1,0 +1,4 @@
+[
+ "https://id.britech.com.br/WS/api/Fundo/OperacaoCotistaAnalitico_PorCarteiraCotista?IdsCarteira=111&IdsCotista=&DataInicio={data_inicio}&DataFim={DataFimArquivo}",
+ "https://id.britech.com.br/WS/api/Fundo/OperacaoCotistaAnalitico_PorCarteiraCotista?IdsCarteira=222&IdsCotista=&DataInicio={data_inicio}&DataFim={DataFimArquivo}"
+]

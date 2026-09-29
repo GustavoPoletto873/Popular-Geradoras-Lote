@@ -1,0 +1,6 @@
+[
+ "https://id.britech.com.br/WS/api/Relatorio/RelatorioSaldoAplicacoesCotista?IdCarteira=111&DataReferencia=2025-11-28&IdCotista=&CpfCnpjCotista=&OpcoesCampo=1&TipoRelatorio=1&TipoGrupamento=1&OpcaoValorAplicado=1&TipoLingua=&IncluiRetorno=true&TipoArquivo=Excel",
+ "https://id.britech.com.br/WS/api/Relatorio/RelatorioSaldoAplicacoesCotista?IdCarteira=111&DataReferencia=2025-11-28&IdCotista=&CpfCnpjCotista=&OpcoesCampo=1&TipoRelatorio=1&TipoGrupamento=1&OpcaoValorAplicado=1&TipoLingua=&IncluiRetorno=true&TipoArquivo=PDF",
+ "https://id.britech.com.br/WS/api/Relatorio/RelatorioSaldoAplicacoesCotista?IdCarteira=222&DataReferencia=2025-11-28&IdCotista=&CpfCnpjCotista=&OpcoesCampo=1&TipoRelatorio=1&TipoGrupamento=1&OpcaoValorAplicado=1&TipoLingua=&IncluiRetorno=true&TipoArquivo=Excel",
+ "https://id.britech.com.br/WS/api/Relatorio/RelatorioSaldoAplicacoesCotista?IdCarteira=222&DataReferencia=2025-11-28&IdCotista=&CpfCnpjCotista=&OpcoesCampo=1&TipoRelatorio=1&TipoGrupamento=1&OpcaoValorAplicado=1&TipoLingua=&IncluiRetorno=true&TipoArquivo=PDF"
+]
