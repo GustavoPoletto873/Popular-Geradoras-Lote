@@ -17,7 +17,9 @@ param(
   [string]$PrefixoTarefas = "cm-",
   [switch]$SemTarefas
 )
-$ErrorActionPreference = "Stop"
+# Windows PowerShell 5.1 trata qualquer texto em stderr de programa nativo (ex.: avisos do git) como erro se for "Stop";
+# por isso "Continue" e checagem explícita de $LASTEXITCODE.
+$ErrorActionPreference = "Continue"
 Set-Location $Raiz
 
 function Parar-Tarefas {
@@ -30,9 +32,10 @@ function Iniciar-Tarefas($tarefas) {
   foreach ($t in $tarefas) { Enable-ScheduledTask -TaskName $t.TaskName | Out-Null }
 }
 
-$anterior = (git describe --tags --always).Trim()
-if (git status --porcelain) { throw "há alterações locais não commitadas em $Raiz; recuse a implantação (git status)" }
+$anterior = (git describe --tags --always 2>$null).Trim()
+if (git status --porcelain 2>$null) { throw "há alterações locais não commitadas em $Raiz; recuse a implantação (git status)" }
 git fetch --tags --quiet
+if ($LASTEXITCODE -ne 0) { Write-Warning "git fetch falhou (sem rede?); usando as tags locais" }
 git rev-parse --verify --quiet "refs/tags/$Tag" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "a tag $Tag não existe" }
 

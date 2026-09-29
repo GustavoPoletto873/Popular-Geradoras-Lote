@@ -16,7 +16,9 @@ param(
   [string]$PrefixoTarefas = "cm-",
   [switch]$SemTarefas
 )
-$ErrorActionPreference = "Stop"
+# Windows PowerShell 5.1 trata qualquer texto em stderr de programa nativo (ex.: avisos do git) como erro se for "Stop";
+# por isso "Continue" e checagem explícita de $LASTEXITCODE.
+$ErrorActionPreference = "Continue"
 Set-Location $Raiz
 
 if (-not $Para) {
@@ -29,7 +31,7 @@ if (-not $SemTarefas) {
   $tarefas = @(Get-ScheduledTask -TaskName "$PrefixoTarefas*" -ErrorAction SilentlyContinue)
   foreach ($t in $tarefas) { Stop-ScheduledTask -TaskName $t.TaskName -ErrorAction SilentlyContinue; Disable-ScheduledTask -TaskName $t.TaskName | Out-Null }
 }
-$atual = (git describe --tags --always).Trim()
+$atual = (git describe --tags --always 2>$null).Trim()
 git checkout --quiet $Para
 if ($LASTEXITCODE -ne 0) { throw "git checkout $Para falhou" }
 & $Python -m pip install --quiet -r requirements.lock
