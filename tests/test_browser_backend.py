@@ -20,13 +20,19 @@ from contabilidade_mensal.integrations.britech.erros import (
     AutenticacaoFalhou,
     CarteiraNaoEncontrada,
     OperacaoNaoSuportada,
+    ProcessamentoNaoAutorizado,
     SessaoBloqueada,
     TelaMudou,
 )
-from contabilidade_mensal.integrations.britech.interface import AdministradoraRef
+from contabilidade_mensal.integrations.britech.interface import AdministradoraRef, CarteiraRef, CompetenciaRef
+from contabilidade_mensal.integrations.britech.erros import BritechErro as BritechErroBase
 from tests.pas_falsa import PasFalsa
 
 ADM = AdministradoraRef("ID CORRETORA", "id", "ID_CORRETORA")
+CNPJ = "12345678000190"
+COMPETENCIA = CompetenciaRef(2026, 8)
+CARTEIRA_101 = CarteiraRef("101", CNPJ, "FUNDO 101", 12)
+CARTEIRA_4468 = CarteiraRef("44680491", "98765432000110", "FUNDO 4468", 12)
 TIMEOUT_MS = 3_000
 
 
@@ -294,17 +300,14 @@ class Credenciais:
         return Credencial(self.pas.usuario, self.pas.senha)
 
 
-def test_backend_abre_sessao_e_recusa_o_que_ainda_nao_implementa(pas, cfg):
+def test_backend_abre_sessao_e_recusa_o_que_nao_e_dele(pas, cfg):
     backend = BrowserBackend(Credenciais(pas), cfg, preparar_contexto=pas.instalar)
     sessao = backend.abrir_sessao(ADM)
     try:
-        for operacao, args in (
-            (backend.processar_contabil, ([], None)),
-            (backend.status_processamento, (None, None)),
-            (backend.baixar_balancete, (None, None, None)),
-        ):
-            with pytest.raises(OperacaoNaoSuportada):
-                operacao(sessao, *args, **({"dry_run": True} if operacao == backend.processar_contabil else {}))
+        with pytest.raises(OperacaoNaoSuportada, match="Q4"):
+            backend.status_processamento(sessao, CARTEIRA_101, COMPETENCIA)
+        with pytest.raises(OperacaoNaoSuportada):
+            backend.baixar_insumo(sessao, CARTEIRA_101, COMPETENCIA, None, None)
     finally:
         sessao.fechar()
     assert pas.logins == pas.logouts == 1
@@ -348,3 +351,143 @@ def test_codigo_do_navegador_nao_tem_pausa_fixa():
     for arquivo in Path(pacote.__file__).parent.rglob("*.py"):
         texto = arquivo.read_text(encoding="utf-8")
         assert "wait_for_timeout" not in texto and "time.sleep" not in texto, arquivo.name
+
+
+# --- Fase 4: fluxos ---------------------------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def backend(pas, cfg):
+    def _criar(allowlist=()):
+        return BrowserBackend(Credenciais(pas), cfg, preparar_contexto=pas.instalar, allowlist_processar=allowlist)
+
+    return _criar
+
+
+def test_dry_run_seleciona_mas_nao_clica_em_processar(pas, backend):
+    b = backend(allowlist=["101"])
+    sessao = b.abrir_sessao(ADM)
+    try:
+        r = b.processar_contabil(sessao, [CARTEIRA_101], COMPETENCIA, dry_run=True)
+    finally:
+        sessao.fechar()
+    assert r.dry_run is True and r.carteiras == ("101",)
+    assert pas.processamentos == []
+
+
+def test_clique_real_exige_allowlist_e_falha_antes_de_abrir_a_tela(pas, backend):
+    b = backend(allowlist=["outra"])
+    sessao = b.abrir_sessao(ADM)
+    try:
+        with pytest.raises(ProcessamentoNaoAutorizado, match="101"):
+            b.processar_contabil(sessao, [CARTEIRA_101], COMPETENCIA, dry_run=False)
+    finally:
+        sessao.fechar()
+    assert pas.processamentos == [] and sessao.evidencias == []  # nem chegou a abrir a tela
+
+
+def test_clique_real_na_allowlist_processa_o_lote_inteiro(pas, backend):
+    b = backend(allowlist=["101", "44680491"])
+    sessao = b.abrir_sessao(ADM)
+    try:
+        r = b.processar_contabil(sessao, [CARTEIRA_101, CARTEIRA_4468], COMPETENCIA, dry_run=False)
+    finally:
+        sessao.fechar()
+    assert r.dry_run is False and r.carteiras == ("101", "44680491")
+    assert len(pas.processamentos) == 1 and sorted(pas.processamentos[0]) == ["101", "44680491"]  # UM clique
+
+
+def test_carteira_ruim_no_lote_impede_qualquer_processamento(pas, backend):
+    b = backend(allowlist=["101", "555"])
+    sessao = b.abrir_sessao(ADM)
+    try:
+        with pytest.raises(CarteiraNaoEncontrada, match="555"):
+            b.processar_contabil(sessao, [CARTEIRA_101, CarteiraRef("555", CNPJ)], COMPETENCIA, dry_run=False)
+    finally:
+        sessao.fechar()
+    assert pas.processamentos == []  # nada foi processado, nem a carteira boa
+    assert {c.suffix for c in sessao.evidencias} == {".png", ".zip"}
+
+
+def test_sessao_que_cai_antes_do_processamento_nunca_termina_em_sucesso(pas, backend):
+    b = backend(allowlist=["101"])
+    sessao = b.abrir_sessao(ADM)
+    try:
+        pas.derrubar_sessao()
+        with pytest.raises(BritechErroBase):
+            b.processar_contabil(sessao, [CARTEIRA_101], COMPETENCIA, dry_run=False)
+    finally:
+        sessao.fechar()
+    assert pas.processamentos == []
+
+
+def test_balancete_usa_o_periodo_da_competencia_e_nomes_canonicos(pas, backend, tmp_path):
+    b = backend()
+    sessao = b.abrir_sessao(ADM)
+    try:
+        r = b.baixar_balancete(sessao, CARTEIRA_101, COMPETENCIA, tmp_path / "saida")
+    finally:
+        sessao.fechar()
+    assert r.pdf.name == f"202608_{CNPJ}_BalanceteContabilFinal.pdf"
+    assert r.xls.name == f"202608_{CNPJ}_BalanceteContabilFinal.xls"
+    assert r.pdf.read_text() == r.xls.read_text() == "balancete|101|01/08/2026|31/08/2026"  # mês fechado, não datas fixas
+
+
+def test_balancete_de_fevereiro_bissexto(pas, backend, tmp_path):
+    b = backend()
+    sessao = b.abrir_sessao(ADM)
+    try:
+        r = b.baixar_balancete(sessao, CARTEIRA_101, CompetenciaRef(2028, 2), tmp_path)
+    finally:
+        sessao.fechar()
+    assert r.pdf.read_text() == "balancete|101|01/02/2028|29/02/2028"
+
+
+def test_balancete_de_carteira_inexistente_gera_erro_tipado(pas, backend, tmp_path):
+    b = backend()
+    sessao = b.abrir_sessao(ADM)
+    try:
+        with pytest.raises(CarteiraNaoEncontrada):
+            b.baixar_balancete(sessao, CarteiraRef("555", CNPJ), COMPETENCIA, tmp_path)
+    finally:
+        sessao.fechar()
+    assert not list(tmp_path.glob("*.pdf")) and not list(tmp_path.glob("*.xls"))  # nada baixado (a pasta tem só as evidências)
+
+
+def test_pipeline_com_o_backend_browser_e_a_pas_falsa(pas, backend, tmp_path, settings, db):
+    """Gateway + BrowserBackend + PAS falsa: processar (espera mínima) -> balancete, com o worker gravando no banco."""
+    import datetime as dt
+
+    from contabilidade_mensal.core.choices import Etapa, StatusEtapa
+    from contabilidade_mensal.core.models import Competencia, EtapaExecucao, Fundo
+    from contabilidade_mensal.integrations.britech.factory import BritechGateway
+    from contabilidade_mensal.integrations.britech.fake import FakeBackend
+    from contabilidade_mensal.pipeline import fakes, servicos
+    from contabilidade_mensal.pipeline.definicao import FILAS
+    from contabilidade_mensal.pipeline.relogio import RelogioSimulado
+    from contabilidade_mensal.pipeline.worker import drenar
+
+    settings.PIPELINE = {"processamento_conclusao": "espera", "processamento_espera_s": 120, "polling_intervalo_s": 60}
+    adm = Administradora.objects.create(nome="ID CORRETORA", url_adm="id", segredo_ref="ID_CORRETORA")
+    fundo = Fundo.objects.create(
+        administradora=adm, codigo_britech="101", cnpj=CNPJ, nome="FUNDO 101", tipo="FII", exercicio_mes=12
+    )
+    comp = Competencia.objects.create(ano=2026, mes=8)
+    operacoes = {
+        "baixar_insumo": "fake",
+        "processar_contabil": "browser",
+        "status_processamento": "browser",
+        "baixar_balancete": "browser",
+    }
+    gateway = BritechGateway({"fake": FakeBackend(), "browser": backend(allowlist=["101"])}, operacoes)
+    relogio = RelogioSimulado(dt.datetime(2026, 9, 1, 8, 0, tzinfo=dt.timezone.utc))
+    handlers = fakes.montar_handlers(gateway, tmp_path / "staging", dry_run_processar=False)
+
+    execucao = servicos.criar_execucao(comp, [fundo], agora=relogio())
+    drenar(FILAS, handlers, relogio)
+
+    status = {e.etapa: e.status for e in EtapaExecucao.objects.filter(execucao=execucao)}
+    assert status[Etapa.PROCESSAR_CONTABIL] == StatusEtapa.SUCESSO
+    assert status[Etapa.BAIXAR_BALANCETE] == StatusEtapa.SUCESSO
+    assert pas.processamentos == [["101"]]
+    assert pas.logins == pas.logouts and not pas.logado  # nenhuma sessão presa

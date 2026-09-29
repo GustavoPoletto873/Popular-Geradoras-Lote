@@ -3,7 +3,7 @@
 Este repositório reúne duas coisas:
 
 1. **`populador/` + `cli.py`** — substituto em Python do botão `ProcessarEmLoop` do *Painel Populador* (etapa Excel). Funciona hoje; ver "Populador" abaixo.
-2. **`contabilidade_mensal/`** — esqueleto do pipeline unificado (Britech por API/navegador → Excel → Drive), em construção. **Fases 1–3 prontas** (orquestração, fila, gateway fake; insumos por API, cadastro do Monday; sessão e telas do Playwright). Ainda não validado com a Britech real (ver changelog). Agendamento: **Agendador de Tarefas do Windows** (sem n8n).
+2. **`contabilidade_mensal/`** — esqueleto do pipeline unificado (Britech por API/navegador → Excel → Drive), em construção. **Fases 1–4 prontas** (orquestração, fila, gateway fake; insumos por API, cadastro do Monday; sessão e telas do Playwright). Ainda não validado com a Britech real (ver changelog). Agendamento: **Agendador de Tarefas do Windows** (sem n8n).
 
 Documentação de projeto: [`docs/unificacao/`](docs/unificacao/) (processo, arquitetura, plano, perguntas abertas, changelog).
 

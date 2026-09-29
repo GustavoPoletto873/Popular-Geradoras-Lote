@@ -106,6 +106,12 @@ class LimiteTaxa(ErroApiBritech):
         super().__init__(mensagem, status_http=429, espera_s=espera_s)
 
 
+class ProcessamentoNaoAutorizado(BritechErro):
+    """Tentativa de clicar em "Processar" (altera dados na Britech) fora da allowlist. Nunca retentar."""
+
+    codigo = "processamento_nao_autorizado"
+
+
 class OperacaoNaoSuportada(BritechErro):
     """O backend escolhido para a operação não a implementa."""
 

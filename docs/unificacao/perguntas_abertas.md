@@ -105,3 +105,8 @@ Ver o changelog da Fase 2 (URL literal do `MovCotista`, `DataFim` como `str(date
 **Q29 🟡 Validar os seletores na PAS real.**
 Só foram testados contra uma PAS falsa. Rodar `testar_navegador_britech --repeticoes 20 --headed` com a credencial de um fundo de baixo risco (Q8) e me passar o resultado (ou a pasta de evidências, ciente de que é sensível). Duas suposições a confirmar: (a) o grid da tela de Balancete usa `td.dxgv[title=<id>]` como o do Processo Contábil; (b) a mensagem/comportamento da PAS para senha errada e para sessão presa (hoje ambos = `AutenticacaoFalhou`).
 
+## Surgiram na Fase 4 (fluxos)
+
+**Q30 🟡 Qual política de conclusão usar no início: `manual` ou `espera`?**
+Sem sinal de fim (Q4), recomendo começar com `manual` num fundo (alguém confere na PAS e confirma no admin) e só depois passar a `espera` com o tempo que essa prática mostrar. Quem confirma, e em quanto tempo o processamento costuma terminar?
+

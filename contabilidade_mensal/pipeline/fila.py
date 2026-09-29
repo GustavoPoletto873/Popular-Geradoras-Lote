@@ -270,6 +270,15 @@ def aguardar_britech(
     )
 
 
+def confirmar_processamento(e: EtapaExecucao, *, agora: dt.datetime | None = None) -> bool:
+    """Confirmação HUMANA de que a Britech terminou de processar: a etapa volta a ser consultada agora."""
+    payload = {**(e.payload or {}), "confirmado_manual": True}
+    alteradas = EtapaExecucao.objects.filter(pk=e.pk, status=S.AGUARDANDO_BRITECH).update(
+        payload=payload, disponivel_em=_agora(agora)
+    )
+    return alteradas == 1
+
+
 def propagar_falha(e: EtapaExecucao, *, agora: dt.datetime | None = None) -> int:
     """Etapas que dependem da que falhou, ainda pendentes na mesma execução/fundo, viram `pulado`."""
     agora = _agora(agora)

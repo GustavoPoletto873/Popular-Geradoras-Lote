@@ -1,5 +1,33 @@
 # Changelog da unificação
 
+## Fase 4 — Fluxos de processar e baixar balancete · 2026-09-29
+
+Plano: `06_plano_migracao.md` (Fase 4). **Q4 continua sem resposta**, então a detecção de conclusão do "Processar Contábil" é configurável (abaixo) em vez de adivinhada.
+
+### O que mudou
+
+- **`browser_backend/flows/processar_contabil.py`** — abre o Processo Contábil, seleciona **todas** as carteiras do lote e só então (se `dry_run=False`) dá **um** clique em "Processar". Se qualquer carteira falhar na seleção, a exceção sobe antes do clique: nada é processado.
+- **`BrowserBackend.processar_contabil`** — clique real exige `dry_run=False` **e** todas as carteiras na allowlist (`ALLOWLIST_PROCESSAR_CONTABIL`); a checagem acontece antes de abrir qualquer tela e levanta `ProcessamentoNaoAutorizado` (não retentável). O dry-run padrão vem de `DRY_RUN_PROCESSAR_CONTABIL=true`.
+- **`browser_backend/flows/baixar_balancete.py`** — período **derivado da competência** (dia 1º ao último dia do mês; fim das datas fixas de jan/2025), download de PDF e Excel com nomes canônicos `AAAAMM_<cnpj>_BalanceteContabilFinal.(pdf|xls)`, erro tipado se o arquivo vier vazio.
+- **Conclusão do processamento (Q4)** — `PIPELINE["processamento_conclusao"]`:
+  - `status` (padrão): pergunta ao backend (o backend `browser` **não** implementa: levanta `OperacaoNaoSuportada` citando a Q4; serve para o `fake`/futura API);
+  - `espera`: concluído `processamento_espera_s` (padrão 600 s) depois do disparo, sem abrir sessão nenhuma durante a espera;
+  - `manual`: só conclui quando alguém usa a ação **"Confirmar que a Britech terminou o processamento"** no admin (`fila.confirmar_processamento`); sem confirmação, estoura o `polling_timeout_s` como falha `timeout_processamento`.
+  A confirmação manual vale em qualquer modo.
+- **Comando `testar_fluxos_britech`** (`--selecionar` = seleção em dry-run com allowlist vazia, **nunca** clica; `--balancete` = baixa PDF/Excel): validação com a Britech real, sem alterar nada.
+
+### Testes (325 passando, 3 pulados)
+
+- 10 novos contra a PAS falsa: dry-run não clica; clique real fora da allowlist é recusado antes de abrir a tela; lote de 2 carteiras = **um** clique; carteira ruim no lote impede qualquer processamento e deixa screenshot + trace; sessão que cai nunca termina em sucesso; balancete com período de 08/2026 e de fev/2028 (bissexto), nomes canônicos; carteira inexistente; e um **pipeline completo** (gateway + backend browser + PAS falsa + worker gravando no banco) com login/logout equilibrados.
+- 5 novos de política de conclusão (`espera`, `manual`, confirmação, timeout, modo inválido).
+
+### Pendente / não verificado
+
+- **Nada disto foi exercitado na Britech real.** Validar: `testar_fluxos_britech ... --selecionar --balancete` num fundo de baixo risco (Q8/Q29).
+- **Q4:** o clique real em "Processar" nunca foi dado; não sei se sobrescreve dados, quanto demora nem se há sinal de fim. Por isso o rollout é: dry-run → allowlist de 1 fundo → `manual` → `espera` (Q23).
+- **Q7:** o balancete é do mês ou acumulado no exercício? Hoje: mês.
+- Lote de várias carteiras da mesma credencial numa sessão só é possível no backend, mas o handler atual processa **uma carteira por etapa** (agrupamento é a Fase 7). Uma carteira ruim num lote futuro bloqueia as outras — decisão consciente, a rever na Fase 7.
+
 ## Fase 3 — Playwright: sessão e Page Objects · 2026-09-29
 
 Plano: `06_plano_migracao.md` (Fase 3). Só a base do backend `browser`; os fluxos (processar, polling, baixar balancete por competência) são a Fase 4.

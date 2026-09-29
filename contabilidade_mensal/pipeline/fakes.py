@@ -9,6 +9,7 @@ Mostram o contrato que os handlers reais (Fases 2–6) seguirão:
 
 from __future__ import annotations
 
+import datetime as dt
 import shutil
 from collections.abc import Mapping
 from pathlib import Path
@@ -67,13 +68,30 @@ def montar_handlers(
 
     def processar_contabil(ctx: ContextoEtapa) -> ResultadoEtapa:
         adm, carteira, comp = _refs(ctx)
-        with gateway.sessao(adm) as sessao:
-            if not ctx.payload.get("disparado"):
+        if not ctx.payload.get("disparado"):
+            with gateway.sessao(adm) as sessao:
                 disparo = gateway.processar_contabil(sessao, [carteira], comp, dry_run=dry_run_processar)
-                ctx.payload["disparado"] = True
-                if disparo.dry_run:
-                    return ResultadoEtapa(dados={"dry_run": True})  # não clicou; não há o que aguardar
-                raise ProcessamentoPendente("processamento disparado; aguardando conclusão")
+            ctx.payload["disparado"] = True
+            if disparo.dry_run:
+                return ResultadoEtapa(dados={"dry_run": True})  # não clicou; não há o que aguardar
+            ctx.payload["disparado_em"] = ctx.agora.isoformat()
+            raise ProcessamentoPendente("processamento disparado; aguardando conclusão")
+
+        # Como saber que terminou (Q4): confirmação humana > política configurada
+        if ctx.payload.get("confirmado_manual"):
+            return ResultadoEtapa(dados={"conclusao": "manual"})
+        p = ctx.parametros
+        if p.processamento_conclusao == "manual":
+            raise ProcessamentoPendente("aguardando confirmação manual no admin")
+        if p.processamento_conclusao == "espera":
+            decorrido = (ctx.agora - dt.datetime.fromisoformat(ctx.payload["disparado_em"])).total_seconds()
+            faltam = p.processamento_espera_s - decorrido
+            if faltam > 0:
+                raise ProcessamentoPendente(
+                    f"faltam {faltam:.0f}s da espera mínima", espera_s=max(1.0, min(faltam, p.polling_intervalo_s))
+                )
+            return ResultadoEtapa(dados={"conclusao": "espera"})
+        with gateway.sessao(adm) as sessao:
             status = gateway.status_processamento(sessao, carteira, comp)
         if status is StatusProcessamento.ERRO:
             raise ErroProcessamentoBritech("a Britech terminou o processamento com erro")

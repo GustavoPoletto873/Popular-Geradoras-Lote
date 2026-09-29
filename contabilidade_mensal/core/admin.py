@@ -32,7 +32,7 @@ class EtapaExecucaoAdmin(admin.ModelAdmin):
     list_display = ("id", "execucao", "fundo", "etapa", "backend", "status", "tentativas", "erro_tipo", "disponivel_em")
     list_filter = ("status", "etapa", "backend", "fila")
     search_fields = ("fundo__nome", "erro_tipo")
-    actions = ["reprocessar"]
+    actions = ["reprocessar", "confirmar_processamento"]
 
     @admin.action(description="Reprocessar selecionadas (e o que depende delas)")
     def reprocessar(self, request, queryset):
@@ -42,6 +42,13 @@ class EtapaExecucaoAdmin(admin.ModelAdmin):
         for etapa_exec in queryset:
             total += fila.reprocessar_etapa(etapa_exec, cascata=True)
         self.message_user(request, f"{total} etapa(s) voltaram para a fila.")
+
+    @admin.action(description="Confirmar que a Britech terminou o processamento (etapas aguardando)")
+    def confirmar_processamento(self, request, queryset):
+        from contabilidade_mensal.pipeline import fila
+
+        total = sum(fila.confirmar_processamento(e) for e in queryset)
+        self.message_user(request, f"{total} etapa(s) confirmadas; serão consultadas na próxima rodada do worker.")
 
 
 @admin.register(models.EstadoEtapa)

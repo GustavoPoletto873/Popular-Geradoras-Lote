@@ -22,8 +22,17 @@ class Parametros:
     backoff_jitter: float = 0.2
     polling_intervalo_s: float = 60.0
     polling_timeout_s: float = 1800.0
+    # Como saber que o "Processar Contábil" terminou (Q4 em aberto):
+    #   status = pergunta ao backend; espera = considera concluído após `processamento_espera_s`;
+    #   manual = só quando alguém confirma no admin.
+    processamento_conclusao: str = "status"
+    processamento_espera_s: float = 600.0
     disjuntor_limites: Mapping[str, int] = field(default_factory=_limites_padrao)
     disjuntor_resfriamento_s: float = 900.0
+
+    def __post_init__(self) -> None:
+        if self.processamento_conclusao not in ("status", "espera", "manual"):
+            raise ValueError(f"processamento_conclusao inválido: {self.processamento_conclusao!r}")
 
 
 def obter() -> Parametros:
