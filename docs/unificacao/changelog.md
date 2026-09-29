@@ -1,5 +1,38 @@
 # Changelog da unificação
 
+## Fase 7 — Paralelização, alertas, watchdog, painel e deploy · 2026-09-29
+
+Plano: `06_plano_migracao.md` (Fase 7). Operação: `09_runbook.md`.
+
+### O que mudou
+
+- **Alertas sem n8n** (`observability/alertas.py`, `pipeline/notificacoes.py`, modelo `Alerta`, migração `0003`): e-mail (SMTP) e/ou webhook do Slack enviados pelo Django. Todo alerta é gravado; repetições dentro da janela só contam (`repeticoes`) — 4 fundos com o mesmo erro geram **1** aviso; falha de canal fica registrada e **nunca** derruba o pipeline. Eventos: login recusado/sessão presa/tela mudou/token do Drive (crítico, 1 por hora por administradora), disjuntor aberto (crítico), falha definitiva de etapa (1 por tipo de erro e etapa), aguardando confirmação manual, competência concluída (com resumo e lista de falhas). Comando `resumo_diario`. Configuração: `ALERTAS_EMAIL_PARA`, `ALERTAS_EMAIL_DE`, `ALERTAS_SLACK_WEBHOOK`, `EMAIL_*`.
+- **Limite de taxa** (`api_backend/limite.py`): *token bucket* por administradora e por processo (`BRITECH_API_RPS`/`BURST`, padrão conservador 2/s, rajada 4; 0 desliga). Um 429 esvazia o balde pelo `Retry-After`, e todos do processo esperam juntos.
+- **Sessão única por lote** (`gateway.lote(adm)` + `Worker(lote=K, abrir_lote=…)`): K etapas da mesma credencial fazem **login uma vez**; o logout acontece no fim do lote ou na hora, se uma etapa deixar a sessão suspeita (erro que conta para o disjuntor). Outra administradora dentro do lote usa sessão avulsa.
+- **Heartbeat** (`pipeline/heartbeat.py`): renova lease da etapa e da trava de credencial em segundo plano, em thread própria, enquanto a etapa roda (workers reais usam; o simulador `drenar` não). Fecha a pendência da Fase 1.
+- **Watchdog** (`limpar_orfaos`): devolve à fila etapas de worker morto, apaga travas vencidas e lista/encerra (`--matar`) **só** Excel de automação (`/automation -Embedding`, confirmado num Excel real iniciado por COM) e Chromium dentro de `ms-playwright`, com mais de 15 min e sem etapa da fila correspondente em andamento. O Excel/Chrome do usuário nunca casa.
+- **Painel:** a matriz do admin agora mostra resumo por estado, disjuntores abertos, etapas aguardando confirmação e os últimos alertas.
+- **Deploy versionado:** `deploy/windows/implantar.ps1` e `reverter.ps1` (tags do Git + `requirements.lock`), com reversão automática se um passo falhar. `requirements.lock` gerado num venv limpo; **a suíte inteira passa nesse venv** (Django 6.1.1, pandas 3.0.6…).
+- **Runbook** completo: `09_runbook.md`.
+- Correção de teste flaky da Fase 1 (o limite inferior do backoff ignorava o jitter de −20% nos dois esperas).
+
+### Testes (420 passando, 6 pulados no venv limpo)
+
+Alertas (15), limite de taxa (7), lote/heartbeat (10), watchdog (7), painel (1) e deploy ensaiado à mão (abaixo).
+
+### Ensaio de deploy e rollback (clone temporário, SQLite, sem tarefas do Agendador)
+
+Deploy A→B com migração aditiva (`db_default`) ✔ · rollback B→A ✔ · o código antigo gravou um `Alerta` no esquema novo ✔ · deploy de tag inexistente recusado ✔ · deploy de versão com migração quebrada **reverteu sozinho** para A ✔.
+
+### Pendente / não verificado
+
+- **Nada foi rodado na Britech, no Drive nem no Postgres reais.** A concorrência real entre workers (Postgres) segue sem teste.
+- Os limites reais da API da Britech são desconhecidos (Q10): 2 req/s é um chute conservador.
+- O lote compartilha a **sessão**, mas cada fundo ainda clica "Processar" sozinho (um clique por fundo, não um para o lote).
+- Alerta só sai se `ALERTAS_*`/`EMAIL_*` estiverem configurados (Q24); sem isso fica gravado e no log.
+- Django 6.1 avisa que `EMAIL_*` será substituído por `MAILERS` (removido só no Django 7); migrar quando o Django for atualizado.
+- Deploy: o caminho com as tarefas reais do Agendador e com Postgres não foi ensaiado.
+
 ## Fase 6 — Etapa Excel e Drive · 2026-09-29
 
 Plano: `06_plano_migracao.md` (Fase 6). Portabilidade para o SimplificaHub_V2: `08_portabilidade_simplificahub_v2.md`.

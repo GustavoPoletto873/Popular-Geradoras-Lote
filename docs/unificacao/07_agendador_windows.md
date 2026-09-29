@@ -8,6 +8,8 @@ Tudo roda na VM Windows dedicada (sessão de usuário sempre logada, por causa d
 |---|---|---|
 | `cm-sincronizar-cadastro` | diária, 06:30 | `manage.py sincronizar_cadastro` |
 | `cm-iniciar-execucao` | diária, 07:00 (o comando é idempotente) | `manage.py iniciar_execucao --competencia auto --disparada-por agendador` |
+| `cm-limpar-orfaos` | a cada 10 min | `manage.py limpar_orfaos --matar` |
+| `cm-resumo-diario` | diária, 18:00 | `manage.py resumo_diario` |
 | `cm-worker-api` | ao logon + repetir a cada 5 min | `manage.py run_worker --fila api` |
 | `cm-worker-browser` | ao logon + repetir a cada 5 min | `manage.py run_worker --fila browser` |
 | `cm-worker-excel` | ao logon (sessão do usuário, com Excel) + repetir a cada 5 min | `manage.py run_worker --fila excel` (com `EXCEL_BACKEND=com`) |
@@ -48,4 +50,4 @@ Parar tudo (manutenção/deploy): `schtasks /End /TN "cm-worker-browser"` (e dem
 
 ## Pendente
 
-- Alertas (falha de login, disjuntor aberto, competência concluída) e o watchdog de órfãos (`limpar_orfaos`): Fase 7 (canal em Q24).
+- Alertas: o Django envia por e-mail/Slack se `ALERTAS_*` estiverem configurados (Q24). Runbook e deploy: `09_runbook.md`.
